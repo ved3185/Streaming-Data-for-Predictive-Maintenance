@@ -245,7 +245,7 @@ For each axis:
 The reproducible validation scenario contains:
 
 ```text
-500 records
+150 records
 ```
 
 with measurements approximately:
@@ -254,7 +254,7 @@ with measurements approximately:
 2 seconds apart
 ```
 
-This represents approximately 16 minutes and 40 seconds of simulated robot operation. The CSV is labeled `SYNTHETIC_TEST`; it is derived from historical residuals and is not a set of genuine machine readings.
+This represents approximately five minutes of simulated robot operation. The CSV is labeled `SYNTHETIC_TEST`; it is derived from historical residuals and is not a set of genuine machine readings.
 
 To validate sustained event detection more than once, four separated Alert periods are injected on Axis 2 and four separated Error periods on Axis 6. The original historical measurement CSV is not modified. Dashboard counts are computed by running the detector over the synthetic records.
 
@@ -314,7 +314,7 @@ MinC / MaxC / T Check
 The regenerated validation outputs process:
 
 ```text
-500 synthetic records
+150 synthetic records
 ```
 
 ---
@@ -727,4 +727,4 @@ Structured Event Log
 Interactive Web Dashboard
 ```
 
-The final validation scenario processed 500 clearly labeled synthetic robot measurements and detected four sustained **Axis 2 Alert** periods and four **Axis 6 Error** periods. These are simulation results, not additional events observed in the original historical dataset.
+The final validation scenario processed 150 clearly labeled synthetic robot measurements and detected four sustained **Axis 2 Alert** periods and four **Axis 6 Error** periods. These are simulation results, not additional events observed in the original historical dataset.
