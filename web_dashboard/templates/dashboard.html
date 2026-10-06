@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Predictive Maintenance Dashboard
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/chart.js">
+    </script>
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0">
+    </script>
+</head>
+
+
+<body>
+
+<div class="page-container">
+
+    <!-- ========================================= -->
+    <!-- Dashboard Header -->
+    <!-- ========================================= -->
+
+    <header class="dashboard-header">
+
+        <div>
+
+            <p class="eyebrow">
+                ROBOT CONDITION MONITORING
+            </p>
+
+            <h1>
+                Predictive Maintenance Dashboard
+            </h1>
+
+            <p class="subtitle">
+                Linear Regression-Based Alert and Error Monitoring
+            </p>
+
+        </div>
+
+
+        <div
+            id="statusBadge"
+            class="status-badge"
+        >
+            Loading...
+        </div>
+
+    </header>
+
+
+    <!-- ========================================= -->
+    <!-- Summary Cards -->
+    <!-- ========================================= -->
+
+    <section class="summary-grid">
+
+        <div class="summary-card">
+
+            <span class="card-label">
+                Highest Severity Detected
+            </span>
+
+            <strong
+                id="highestSeverity"
+                class="card-value"
+            >
+                -
+            </strong>
+
+        </div>
+
+
+        <div class="summary-card">
+
+            <span class="card-label">
+                Alerts
+            </span>
+
+            <strong
+                id="alertCount"
+                class="card-value"
+            >
+                -
+            </strong>
+
+        </div>
+
+
+        <div class="summary-card">
+
+            <span class="card-label">
+                Errors
+            </span>
+
+            <strong
+                id="errorCount"
+                class="card-value"
+            >
+                -
+            </strong>
+
+        </div>
+
+
+        <div class="summary-card">
+
+            <span class="card-label">
+                Processed Records
+            </span>
+
+            <strong
+                id="rowCount"
+                class="card-value"
+            >
+                -
+            </strong>
+
+        </div>
+
+    </section>
+
+
+    <!-- ========================================= -->
+    <!-- Axis Monitoring Section -->
+    <!-- ========================================= -->
+
+    <section class="section-heading">
+
+        <div>
+
+            <h2>
+                Axis Monitoring
+            </h2>
+
+            <p>
+                Actual current compared with regression predictions
+                and residual-based thresholds.
+            </p>
+
+        </div>
+
+    </section>
+
+
+    <section
+        id="chartsGrid"
+        class="charts-grid"
+    >
+    </section>
+
+
+    <!-- ========================================= -->
+    <!-- Detected Events Section -->
+    <!-- ========================================= -->
+
+    <section class="events-section">
+
+        <div class="section-heading">
+
+            <div>
+
+                <h2>
+                    Detected Maintenance Events
+                </h2>
+
+                <p>
+                    Events are generated only when abnormal residuals
+                    persist for at least 10 seconds.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="table-container">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>Axis</th>
+                        <th>Severity</th>
+                        <th>Start Time</th>
+                        <th>Detected At</th>
+                        <th>Duration</th>
+                        <th>Residual</th>
+                        <th>Threshold</th>
+                    </tr>
+
+                </thead>
+
+
+                <tbody id="eventsTableBody">
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+</div>
+
+
+<script>
+
+/*
+=========================================================
+Load all dashboard information from Flask
+=========================================================
+*/
+
+async function loadDashboard() {
+
+    const response = await fetch(
+        "/api/dashboard-data"
+    );
+
+    if (!response.ok) {
+
+        throw new Error(
+            "Could not load dashboard data."
+        );
+
+    }
+
+    const data = await response.json();
+
+    updateSummary(
+        data.summary
+    );
+
+    createCharts(
+        data
+    );
+
+    createEventsTable(
+        data.events
+    );
+}
+
+
+/*
+=========================================================
+Update top summary cards
+=========================================================
+*/
+
+function updateSummary(summary) {
+
+    document.getElementById(
+        "highestSeverity"
+    ).textContent =
+        summary.highest_severity;
+
+
+    document.getElementById(
+        "alertCount"
+    ).textContent =
+        summary.alerts;
+
+
+    document.getElementById(
+        "errorCount"
+    ).textContent =
+        summary.errors;
+
+
+    document.getElementById(
+        "rowCount"
+    ).textContent =
+        summary.rows;
+
+
+    const badge =
+        document.getElementById(
+            "statusBadge"
+        );
+
+
+    badge.textContent =
+        summary.highest_severity;
+
+
+    badge.className =
+        "status-badge "
+        + summary.highest_severity
+            .toLowerCase();
+}
+
+
+/*
+=========================================================
+Create charts for Axis 1 through Axis 8
+=========================================================
+*/
+
+function createCharts(data) {
+
+    const chartsGrid =
+        document.getElementById(
+            "chartsGrid"
+        );
+
+
+    const axisNames =
+        Object.keys(
+            data.axes
+        );
+
+
+    axisNames.forEach(axis => {
+
+        /*
+        -------------------------------------------
+        Create chart card
+        -------------------------------------------
+        */
+
+        const card =
+            document.createElement(
+                "div"
+            );
+
+        card.className =
+            "chart-card";
+
+
+        /*
+        -------------------------------------------
+        Chart heading
+        -------------------------------------------
+        */
+
+        const header =
+            document.createElement(
+                "div"
+            );
+
+        header.className =
+            "chart-card-header";
+
+
+        const title =
+            document.createElement(
+                "h3"
+            );
+
+
+        title.textContent =
+            axis
+                .replace(
+                    "_",
+                    " "
+                )
+                .toUpperCase();
+
+
+        /*
+        -------------------------------------------
+        Display MinC and MaxC
+        -------------------------------------------
+        */
+
+        const thresholdText =
+            document.createElement(
+                "span"
+            );
+
+
+        thresholdText.className =
+            "threshold-label";
+
+
+        thresholdText.textContent =
+            `MinC: ${
+                Number(
+                    data.thresholds[
+                        axis
+                    ].MinC
+                ).toFixed(2)
+            } | MaxC: ${
+                Number(
+                    data.thresholds[
+                        axis
+                    ].MaxC
+                ).toFixed(2)
+            }`;
+
+
+        header.appendChild(
+            title
+        );
+
+        header.appendChild(
+            thresholdText
+        );
+
+
+        /*
+        -------------------------------------------
+        Chart canvas
+        -------------------------------------------
+        */
+
+        const canvasWrapper =
+            document.createElement(
+                "div"
+            );
+
+
+        canvasWrapper.className =
+            "canvas-wrapper";
+
+
+        const canvas =
+            document.createElement(
+                "canvas"
+            );
+
+
+        canvasWrapper.appendChild(
+            canvas
+        );
+
+
+        card.appendChild(
+            header
+        );
+
+        card.appendChild(
+            canvasWrapper
+        );
+
+
+        chartsGrid.appendChild(
+            card
+        );
+
+
+        /*
+        -------------------------------------------
+        Find events belonging to this axis
+        -------------------------------------------
+        */
+
+        const axisEvents =
+            data.events.filter(
+                event =>
+                    event.axis
+                    === axis
+            );
+
+
+        const annotations = {};
+
+
+        axisEvents.forEach(
+            (event, index) => {
+
+                const startTimestamp =
+                    new Date(
+                        event.start_time
+                    ).getTime();
+
+
+                const detectedTimestamp =
+                    new Date(
+                        event.detected_at
+                    ).getTime();
+
+
+                const startIndex =
+                    data.timestamps.findIndex(
+                        timestamp =>
+                            new Date(
+                                timestamp
+                            ).getTime()
+                            === startTimestamp
+                    );
+
+
+                const detectedIndex =
+                    data.timestamps.findIndex(
+                        timestamp =>
+                            new Date(
+                                timestamp
+                            ).getTime()
+                            === detectedTimestamp
+                    );
+
+
+                /*
+                Only draw annotation when both
+                timestamps were found in the data.
+                */
+
+                if (
+                    startIndex !== -1
+                    &&
+                    detectedIndex !== -1
+                ) {
+
+                    annotations[
+                        `event_${index}`
+                    ] = {
+
+                        type:
+                            "box",
+
+                        xMin:
+                            data.timestamps[
+                                startIndex
+                            ],
+
+                        xMax:
+                            data.timestamps[
+                                detectedIndex
+                            ],
+
+                        backgroundColor:
+                            event.event_type
+                            === "ERROR"
+                            ?
+                            "rgba(239, 68, 68, 0.16)"
+                            :
+                            "rgba(245, 158, 11, 0.16)",
+
+                        borderColor:
+                            event.event_type
+                            === "ERROR"
+                            ?
+                            "rgba(239, 68, 68, 0.75)"
+                            :
+                            "rgba(245, 158, 11, 0.75)",
+
+                        borderWidth:
+                            1,
+
+                        label: {
+
+                            display:
+                                true,
+
+                            content:
+                                `${event.event_type} `
+                                +
+                                `${Number(
+                                    event.duration_seconds
+                                ).toFixed(0)}s`,
+
+                            position:
+                                "start"
+
+                        }
+
+                    };
+
+                }
+
+            }
+        );
+
+
+        /*
+        -------------------------------------------
+        Create interactive Chart.js graph
+        -------------------------------------------
+        */
+
+        new Chart(
+            canvas,
+            {
+
+                type:
+                    "line",
+
+                data: {
+
+                    labels:
+                        data.timestamps,
+
+                    datasets: [
+
+                        /*
+                        Actual machine current
+                        */
+
+                        {
+                            label:
+                                "Actual Current",
+
+                            data:
+                                data.axes[
+                                    axis
+                                ].actual,
+
+                            borderWidth:
+                                2,
+
+                            pointRadius:
+                                0,
+
+                            tension:
+                                0.15
+                        },
+
+
+                        /*
+                        Regression prediction
+                        */
+
+                        {
+                            label:
+                                "Regression Prediction",
+
+                            data:
+                                data.axes[
+                                    axis
+                                ].predicted,
+
+                            borderWidth:
+                                2,
+
+                            pointRadius:
+                                0,
+
+                            borderDash: [
+                                6,
+                                4
+                            ]
+                        },
+
+
+                        /*
+                        Predicted Current + MinC
+                        */
+
+                        {
+                            label:
+                                "Alert Boundary",
+
+                            data:
+                                data.axes[
+                                    axis
+                                ].alert_boundary,
+
+                            borderWidth:
+                                1,
+
+                            pointRadius:
+                                0,
+
+                            borderDash: [
+                                4,
+                                4
+                            ]
+                        },
+
+
+                        /*
+                        Predicted Current + MaxC
+                        */
+
+                        {
+                            label:
+                                "Error Boundary",
+
+                            data:
+                                data.axes[
+                                    axis
+                                ].error_boundary,
+
+                            borderWidth:
+                                1,
+
+                            pointRadius:
+                                0,
+
+                            borderDash: [
+                                2,
+                                4
+                            ]
+                        }
+
+                    ]
+                },
+
+
+                options: {
+
+                    responsive:
+                        true,
+
+                    maintainAspectRatio:
+                        false,
+
+
+                    interaction: {
+
+                        mode:
+                            "index",
+
+                        intersect:
+                            false
+
+                    },
+
+
+                    plugins: {
+
+                        legend: {
+
+                            position:
+                                "bottom",
+
+                            labels: {
+
+                                boxWidth:
+                                    18
+
+                            }
+
+                        },
+
+
+                        annotation: {
+
+                            annotations:
+                                annotations
+
+                        }
+
+                    },
+
+
+                    scales: {
+
+                        /*
+                        Time axis
+                        */
+
+                        x: {
+
+                            ticks: {
+
+                                maxTicksLimit:
+                                    6,
+
+                                callback:
+                                    function(
+                                        value
+                                    ) {
+
+                                        const label =
+                                            this
+                                            .getLabelForValue(
+                                                value
+                                            );
+
+
+                                        const date =
+                                            new Date(
+                                                label
+                                            );
+
+
+                                        return date
+                                            .toLocaleTimeString();
+
+                                    }
+
+                            },
+
+
+                            grid: {
+
+                                display:
+                                    false
+
+                            }
+
+                        },
+
+
+                        /*
+                        Current axis
+                        */
+
+                        y: {
+
+                            beginAtZero:
+                                true,
+
+                            title: {
+
+                                display:
+                                    true,
+
+                                text:
+                                    "Current"
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+        );
+
+    });
+
+}
+
+
+/*
+=========================================================
+Create maintenance events table
+=========================================================
+*/
+
+function createEventsTable(events) {
+
+    const tableBody =
+        document.getElementById(
+            "eventsTableBody"
+        );
+
+
+    /*
+    Show message when no events occurred.
+    */
+
+    if (
+        events.length === 0
+    ) {
+
+        tableBody.innerHTML = `
+
+            <tr>
+
+                <td colspan="7">
+                    No maintenance events detected.
+                </td>
+
+            </tr>
+
+        `;
+
+        return;
+
+    }
+
+
+    /*
+    Add one table row per event.
+    */
+
+    events.forEach(event => {
+
+        const row =
+            document.createElement(
+                "tr"
+            );
+
+
+        const severityClass =
+            event.event_type
+            === "ERROR"
+            ?
+            "event-error"
+            :
+            "event-alert";
+
+
+        row.innerHTML = `
+
+            <td>
+                ${event.axis.toUpperCase()}
+            </td>
+
+
+            <td>
+
+                <span class="
+                    event-pill
+                    ${severityClass}
+                ">
+                    ${event.event_type}
+                </span>
+
+            </td>
+
+
+            <td>
+                ${formatTime(
+                    event.start_time
+                )}
+            </td>
+
+
+            <td>
+                ${formatTime(
+                    event.detected_at
+                )}
+            </td>
+
+
+            <td>
+                ${Number(
+                    event.duration_seconds
+                ).toFixed(0)} sec
+            </td>
+
+
+            <td>
+                ${Number(
+                    event.residual
+                ).toFixed(2)}
+            </td>
+
+
+            <td>
+                ${Number(
+                    event.threshold
+                ).toFixed(2)}
+            </td>
+
+        `;
+
+
+        tableBody.appendChild(
+            row
+        );
+
+    });
+
+}
+
+
+/*
+=========================================================
+Convert timestamp to readable local time
+=========================================================
+*/
+
+function formatTime(timestamp) {
+
+    return new Date(
+        timestamp
+    ).toLocaleTimeString();
+
+}
+
+
+/*
+=========================================================
+Start dashboard
+=========================================================
+*/
+
+loadDashboard()
+    .catch(error => {
+
+        console.error(
+            error
+        );
+
+
+        const badge =
+            document.getElementById(
+                "statusBadge"
+            );
+
+
+        badge.textContent =
+            "DATA ERROR";
+
+    });
+
+</script>
+
+
+</body>
+
+</html>
